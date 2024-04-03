@@ -3,7 +3,10 @@ import { Context, Router, ServerSentEvent, ServerSentEventTarget } from "oak";
 export const router = new Router();
 
 const SSE_ENDPOINT = "/sse";
+const EVENTS_ENDPOINT = "EVENTS_ENDPOINT";
 const EVENTS_TOPIC = "events";
+const EXPECTED_VERIFY_TOKEN = "TEST_VERIFY_TOKEN";
+const SUBSCRIBE_MODE = "subscribe";
 
 function getSSEClientHTML()  {
     return `<html>
@@ -40,7 +43,19 @@ router.get(SSE_ENDPOINT, (ctx: Context) => {
     });
 });
 
-router.post("/events", async (ctx) => {
+router.get(EVENTS_ENDPOINT, (ctx: Context) => {
+    const mode = ctx.request.url.searchParams.get("mode");
+    const challenge = ctx.request.url.searchParams.get("challenge");
+    const verifyToken = ctx.request.url.searchParams.get("verify_token");
+    if (mode === SUBSCRIBE_MODE && challenge && EXPECTED_VERIFY_TOKEN === verifyToken) {
+        ctx.response.body = challenge;
+        ctx.response.status = 200;
+    } else {
+        ctx.response.status = 400;
+    }
+});
+
+router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
   const data = await value;
   const event = new ServerSentEvent(EVENTS_TOPIC, { data: JSON.stringify(data) });
