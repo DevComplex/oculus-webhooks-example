@@ -90,9 +90,9 @@ router.get(SSE_ENDPOINT, (ctx: Context) => {
 });
 
 router.get(EVENTS_ENDPOINT, (ctx: Context) => {
-    const mode = ctx.request.url.searchParams.get("mode");
-    const challenge = ctx.request.url.searchParams.get("challenge");
-    const verifyToken = ctx.request.url.searchParams.get("verify_token");
+    const mode = ctx.request.url.searchParams.get("hub.mode");
+    const challenge = ctx.request.url.searchParams.get("hub.challenge");
+    const verifyToken = ctx.request.url.searchParams.get("hub.verify_token");
 
     if (mode === SUBSCRIBE_MODE && challenge && EXPECTED_VERIFY_TOKEN === verifyToken) {
         ctx.response.status = 200;
