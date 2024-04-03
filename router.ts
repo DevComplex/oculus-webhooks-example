@@ -1,3 +1,4 @@
+import { resolve } from "https://deno.land/std@0.188.0/path/win32.ts";
 import { Context, Router, ServerSentEvent, ServerSentEventTarget } from "oak";
 
 export const router = new Router();
@@ -33,11 +34,30 @@ router.get("/", (ctx: Context) => {
     ctx.response.status = 200;
 });
 
-const clientTargets = new Set<ServerSentEventTarget>()
+const events: ServerSentEvent[] = []
+const clientTargets = new Set<ServerSentEventTarget>();
+
+function wait(timeInMs: number) {
+    return new Promise(resolve => setTimeout(resolve, timeInMs));
+}
+
+async function dispatchEvents(target: ServerSentEventTarget, delayTimeInMs: number = 150) {
+    for(const event of events) {
+        await wait(delayTimeInMs);
+        if (clientTargets.has(target)) {
+            target.dispatchEvent(event);
+        } else {
+            return;
+        }
+    }
+}
 
 router.get(SSE_ENDPOINT, (ctx: Context) => {
     const target = ctx.sendEvents();
-    clientTargets.add(target);
+    clientTargets.add(target)
+    if (events.length > 0) {
+        dispatchEvents(target);
+    }
     target.addEventListener("close", () => {
         clientTargets.delete(target);
     });
@@ -61,6 +81,7 @@ router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
   const data = await value;
   const event = new ServerSentEvent(EVENTS_TOPIC, { data: JSON.stringify(data) });
+  events.push(event);
   try {
     for(const target of clientTargets) {
         target.dispatchEvent(event);
