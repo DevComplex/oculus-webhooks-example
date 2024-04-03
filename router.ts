@@ -34,7 +34,34 @@ router.get("/", (ctx: Context) => {
     ctx.response.status = 200;
 });
 
-const events: ServerSentEvent[] = []
+class EventHistory {
+    events: ServerSentEvent[] = [];
+    maxSize: number;
+
+    constructor(maxSize: number = 1000) {
+        this.events = [];
+        this.maxSize = maxSize;
+    }
+
+    addEvent(event: ServerSentEvent) {
+        if (this.events.length >= this.maxSize) {
+            this.events.shift();
+        } else {
+            this.events.push(event);
+        }
+    }
+
+    isEmpty() {
+        return this.events.length === 0;
+    }
+
+    get getEvents(): ServerSentEvent[] {
+        return this.events;
+    }
+}
+
+
+const eventHistory = new EventHistory();
 const clientTargets = new Set<ServerSentEventTarget>();
 
 function wait(timeInMs: number) {
@@ -42,7 +69,7 @@ function wait(timeInMs: number) {
 }
 
 async function dispatchEvents(target: ServerSentEventTarget, delayTimeInMs: number = 150) {
-    for(const event of events) {
+    for(const event of eventHistory.events) {
         await wait(delayTimeInMs);
         if (clientTargets.has(target)) {
             target.dispatchEvent(event);
@@ -55,7 +82,7 @@ async function dispatchEvents(target: ServerSentEventTarget, delayTimeInMs: numb
 router.get(SSE_ENDPOINT, (ctx: Context) => {
     const target = ctx.sendEvents();
     clientTargets.add(target)
-    if (events.length > 0) {
+    if (!eventHistory.isEmpty()) {
         dispatchEvents(target);
     }
     target.addEventListener("close", () => {
@@ -81,7 +108,7 @@ router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
   const data = await value;
   const event = new ServerSentEvent(EVENTS_TOPIC, { data: JSON.stringify(data) });
-  events.push(event);
+  eventHistory.addEvent(event);
   try {
     for(const target of clientTargets) {
         target.dispatchEvent(event);
