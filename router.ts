@@ -105,6 +105,7 @@ router.get(EVENTS_ENDPOINT, (ctx: Context) => {
 
 router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
+  console.log(`Request with payload... ${value}`);
   const data = await value;
   const event = new ServerSentEvent(EVENTS_TOPIC, { data: JSON.stringify(data) });
   eventHistory.addEvent(event);
