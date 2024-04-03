@@ -46,9 +46,8 @@ class EventHistory {
     addEvent(event: ServerSentEvent) {
         if (this.events.length >= this.maxSize) {
             this.events.shift();
-        } else {
-            this.events.push(event);
         }
+        this.events.push(event);
     }
 
     isEmpty() {
