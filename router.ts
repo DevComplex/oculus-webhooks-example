@@ -1,4 +1,3 @@
-import { resolve } from "https://deno.land/std@0.188.0/path/win32.ts";
 import { Context, Router, ServerSentEvent, ServerSentEventTarget } from "oak";
 
 export const router = new Router();
@@ -9,33 +8,8 @@ const EVENTS_TOPIC = "events";
 const EXPECTED_VERIFY_TOKEN = "TEST_VERIFY_TOKEN";
 const SUBSCRIBE_MODE = "subscribe";
 
-function getSSEClientHTML()  {
-    return `<html>
-    <body>
-      <h1>Meta Quest Webhooks Events</h1>
-      <pre id="events"></pre>
-
-      <script>
-        const events = document.getElementById("events");
-        const write = (msg) => events.append(msg + "\\n");
-        const source = new EventSource("${SSE_ENDPOINT}");
-        source.addEventListener("${EVENTS_TOPIC}", (evt) => {
-            write(evt.data);
-        });
-      </script>
-    </body>
-  </html>`;
-}
-
-router.get("/", (ctx: Context) => {
-    const body = new TextEncoder().encode(getSSEClientHTML());
-    ctx.response.type = "text/html";
-    ctx.response.body = body;
-    ctx.response.status = 200;
-});
-
 class EventHistory {
-    events: ServerSentEvent[] = [];
+    events: string[] = [];
     maxSize: number;
 
     constructor(maxSize: number = 1000) {
@@ -43,7 +17,7 @@ class EventHistory {
         this.maxSize = maxSize;
     }
 
-    addEvent(event: ServerSentEvent) {
+    addEvent(event: string) {
         if (this.events.length >= this.maxSize) {
             this.events.shift();
         }
@@ -54,21 +28,56 @@ class EventHistory {
         return this.events.length === 0;
     }
 
-    get getEvents(): ServerSentEvent[] {
+    get getEvents(): string[] {
         return this.events;
     }
 }
 
-
+const channel = new BroadcastChannel(EVENTS_TOPIC);
 const eventHistory = new EventHistory();
 const clientTargets = new Set<ServerSentEventTarget>();
+
+router.get("/", (ctx: Context) => {
+    function getSSEClientHTML()  {
+        return `<html>
+        <body>
+          <h1>Meta Quest Webhooks Events</h1>
+          <pre id="events"></pre>
+
+          <script>
+            const events = document.getElementById("events");
+            const write = (msg) => events.append(msg + "\\n");
+            const source = new EventSource("${SSE_ENDPOINT}");
+            source.addEventListener("${EVENTS_TOPIC}", (evt) => {
+                write(evt.data);
+            });
+          </script>
+        </body>
+      </html>`;
+    }
+
+    const body = new TextEncoder().encode(getSSEClientHTML());
+    ctx.response.type = "text/html";
+    ctx.response.body = body;
+    ctx.response.status = 200;
+});
+
+
+channel.onmessage = (evt) => {
+    eventHistory.addEvent(evt.data);
+    const event = createServerSentEvent(EVENTS_TOPIC, evt.data);
+    for(const target of clientTargets) {
+        target.dispatchEvent(event);
+    }
+}
 
 function wait(timeInMs: number) {
     return new Promise(resolve => setTimeout(resolve, timeInMs));
 }
 
-async function dispatchEvents(target: ServerSentEventTarget, delayTimeInMs: number = 150) {
-    for(const event of eventHistory.events) {
+async function dispatchHistoricalEvents(target: ServerSentEventTarget, delayTimeInMs: number = 150) {
+    for(const eventStr of eventHistory.events) {
+        const event = createServerSentEvent(EVENTS_TOPIC, eventStr);
         await wait(delayTimeInMs);
         if (clientTargets.has(target)) {
             target.dispatchEvent(event);
@@ -82,7 +91,7 @@ router.get(SSE_ENDPOINT, (ctx: Context) => {
     const target = ctx.sendEvents();
     clientTargets.add(target)
     if (!eventHistory.isEmpty()) {
-        dispatchEvents(target);
+        dispatchHistoricalEvents(target);
     }
     target.addEventListener("close", () => {
         clientTargets.delete(target);
@@ -103,16 +112,24 @@ router.get(EVENTS_ENDPOINT, (ctx: Context) => {
     }
 });
 
+function createServerSentEvent(topic: string, data: string) {
+    return new ServerSentEvent(topic, { data });
+}
+
 router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
-  console.log(`Request with payload... ${value}`);
-  const data = await value;
-  const event = new ServerSentEvent(EVENTS_TOPIC, { data: JSON.stringify(data) });
-  eventHistory.addEvent(event);
+  const data = JSON.stringify(await value);
+  console.log(`Request with payload... ${data}`);
+
+  channel.postMessage(data);
+  eventHistory.addEvent(data);
+
+  for(const target of clientTargets) {
+      const event = createServerSentEvent(EVENTS_TOPIC, data);
+      target.dispatchEvent(event);
+  }
+
   try {
-    for(const target of clientTargets) {
-        target.dispatchEvent(event);
-    }
     ctx.response.status = 200;
     ctx.response.body = { isSuccessful: true };
   } catch {
