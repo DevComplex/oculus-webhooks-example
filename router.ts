@@ -119,7 +119,7 @@ function createServerSentEvent(topic: string, data: string) {
 router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
   const data = JSON.stringify(await value);
-  console.log(`Request with payload... ${data}`);
+  console.log(`Request with payload... ${data}\nRequest with headers... ${JSON.stringify(ctx.request.headers)}`);
 
   channel.postMessage(data);
   eventHistory.addEvent(data);
