@@ -119,7 +119,8 @@ function createServerSentEvent(topic: string, data: string) {
 router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
   const data = JSON.stringify(await value);
-  console.log(`Request with payload... ${data}\nRequest with headers... ${JSON.stringify(ctx.request.headers)}`);
+  console.log(`Signature: ${ctx.request.headers.get("x-hub-signature")}`)
+  console.log(`Request with payload... ${data}`);
 
   channel.postMessage(data);
   eventHistory.addEvent(data);
