@@ -1,7 +1,19 @@
 import { Context, Router, ServerSentEvent, ServerSentEventTarget } from "oak";
 
+import { createHmac } from "https://deno.land/std@0.166.0/node/crypto.ts";
+
+
+function validateSignature(payload: string, signature: string, appSecret: string): boolean {
+    const serializedPayload = new TextEncoder().encode(payload);
+    const hmac = createHmac("sha1", new TextEncoder().encode(appSecret));
+    hmac.update(serializedPayload);
+    const generatedSignature = hmac.toString();
+    return signature === generatedSignature;
+}
+
 export const router = new Router();
 
+const APP_SECRET = Deno.env.get("APP_SECRET");
 const SSE_ENDPOINT = "/sse";
 const EVENTS_ENDPOINT = "/events";
 const EVENTS_TOPIC = "events";
@@ -118,9 +130,16 @@ function createServerSentEvent(topic: string, data: string) {
 
 router.post(EVENTS_ENDPOINT, async (ctx) => {
   const { value } = ctx.request.body({ type: "json" });
+
   const data = JSON.stringify(await value);
-  console.log(`Signature: ${ctx.request.headers.get("x-hub-signature")}`)
   console.log(`Request with payload... ${data}`);
+
+  const signature = ctx.request.headers.get("x-hub-signature");
+  const signatureValue = signature?.split("sha1=")[1];
+
+  if (!validateSignature(data, signatureValue!, APP_SECRET!)) {
+    console.log("Invalid signature... Request did not come from Meta...");
+  }
 
   channel.postMessage(data);
   eventHistory.addEvent(data);

@@ -72,6 +72,7 @@
     }
   },
   "redirects": {
+    "https://deno.land/std/encoding/base64url.ts": "https://deno.land/std@0.222.1/encoding/base64url.ts",
     "https://deno.land/x/oak/mod.ts": "https://deno.land/x/oak@14.2.0/mod.ts"
   },
   "remote": {
