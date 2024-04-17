@@ -115,11 +115,15 @@ router.get(EVENTS_ENDPOINT, (ctx: Context) => {
     const challenge = ctx.request.url.searchParams.get("hub.challenge");
     const verifyToken = ctx.request.url.searchParams.get("hub.verify_token");
 
+    console.log(`Events Challenge... mode: ${mode}, ${challenge}, ${verifyToken} from ${ctx.request.ip}`)
+
     if (mode === SUBSCRIBE_MODE && challenge && EXPECTED_VERIFY_TOKEN === verifyToken) {
+        console.log(`Events Challenge Success for ${ctx.request.ip}`)
         ctx.response.status = 200;
         ctx.response.type = "text/plain";
         ctx.response.body = challenge;
     } else {
+        console.log(`Events Challenge Failure for ${ctx.request.ip}`)
         ctx.response.status = 400;
     }
 });
