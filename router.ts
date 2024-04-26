@@ -141,9 +141,9 @@ router.post(EVENTS_ENDPOINT, async (ctx) => {
   const signature = ctx.request.headers.get("x-hub-signature");
   const signatureValue = signature?.split("sha1=")[1];
 
-  if (!validateSignature(data, signatureValue!, APP_SECRET!)) {
-    console.log("Invalid signature... Request did not come from Meta...");
-  }
+//   if (!validateSignature(data, signatureValue!, APP_SECRET!)) {
+//     console.log("Invalid signature... Request did not come from Meta...");
+//   }
 
   channel.postMessage(data);
   eventHistory.addEvent(data);
